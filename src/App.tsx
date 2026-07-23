@@ -16,45 +16,33 @@ import { PaymentScreen } from './components/PaymentScreen';
 import { ConfigModal } from './components/ConfigModal';
 import { OrderFormData, OrderPayload, PaymentMethodType, CompanyConfig } from './types';
 import { APP_CONFIG, generateOrderNumber } from './config';
+import {
+  sendOrderToGoogleSheets,
+  fetchConfigFromGoogleSheets,
+  getPendingOrder,
+} from './lib/sheetsService';
 
-// Admin Imports
-import { supabase, isSupabaseConfigured, savePublicOrder, fetchStoreConfig } from './lib/supabase';
-import { AdminLayout } from './components/admin/AdminLayout';
-import { AdminLogin } from './components/admin/AdminLogin';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { AdminOrders } from './components/admin/AdminOrders';
-import { AdminIntegrations } from './components/admin/AdminIntegrations';
-import { AdminCallback } from './components/admin/AdminCallback';
-import { AdminConfig } from './components/admin/AdminConfig';
-
-const LOCAL_STORAGE_KEY = 'capilaris_order_draft_v1';
-const LOCAL_STORAGE_ADMIN_USER = 'capilaris_admin_user_session_v1';
+const LOCAL_STORAGE_KEY = 'capilaris_order_draft_v2';
 
 export default function App() {
-  // Path Router State
-  const [currentPath, setCurrentPath] = useState<string>(window.location.pathname);
-  const [adminUserEmail, setAdminUserEmail] = useState<string | null>(() => {
-    return localStorage.getItem(LOCAL_STORAGE_ADMIN_USER);
-  });
+  // Store Config (Can be augmented from Sheets)
+  const [storeConfig] = useState<CompanyConfig>(APP_CONFIG);
 
-  // Dynamic Store Config
-  const [storeConfig, setStoreConfig] = useState<CompanyConfig>(APP_CONFIG);
-
-  // Form State
+  // Form Navigation State
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [direction, setDirection] = useState<'next' | 'back'>('next');
   const [isPaymentScreen, setIsPaymentScreen] = useState<boolean>(false);
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(false);
 
-  // Webhook URL
-  const [webhookUrl, setWebhookUrl] = useState<string>(() => {
+  // Google Sheets Endpoint Web App URL
+  const [sheetsEndpoint, setSheetsEndpoint] = useState<string>(() => {
     return (
-      (import.meta.env.VITE_WEBHOOK_URL as string) ||
-      'https://hook.us1.make.com/your-notion-webhook-id'
+      (import.meta.env.VITE_SHEETS_ENDPOINT as string) ||
+      ''
     );
   });
 
-  // Form Data state
+  // Form Data state with LocalStorage draft memory
   const [formData, setFormData] = useState<OrderFormData>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -80,71 +68,29 @@ export default function App() {
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [webhookErrorMsg, setWebhookErrorMsg] = useState<string>('');
 
-  // Handle Browser Back/Forward buttons and Path sync
+  // Persist draft to localStorage on form changes
   useEffect(() => {
-    const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  // Load Dynamic Store Config and Supabase Auth State
-  useEffect(() => {
-    fetchStoreConfig().then((cfg) => {
-      if (cfg) {
-        setStoreConfig(cfg);
-        if (!formData.productoId && cfg.products.length > 0) {
-          setFormData((prev) => ({ ...prev, productoId: cfg.products[0].id }));
-        }
+    if (!isPaymentScreen) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
+      } catch {
+        // Ignore
       }
-    });
-
-    if (isSupabaseConfigured && supabase) {
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session?.user) {
-          setAdminUserEmail(data.session.user.email || 'admin@capilaris.com');
-          localStorage.setItem(
-            LOCAL_STORAGE_ADMIN_USER,
-            data.session.user.email || 'admin@capilaris.com'
-          );
-        }
-      });
-
-      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          setAdminUserEmail(session.user.email || 'admin@capilaris.com');
-          localStorage.setItem(
-            LOCAL_STORAGE_ADMIN_USER,
-            session.user.email || 'admin@capilaris.com'
-          );
-        } else if (_event === 'SIGNED_OUT') {
-          setAdminUserEmail(null);
-          localStorage.removeItem(LOCAL_STORAGE_ADMIN_USER);
-        }
-      });
-
-      return () => {
-        authListener.subscription.unsubscribe();
-      };
     }
-  }, []);
+  }, [formData, isPaymentScreen]);
 
-  // Custom Navigation function
-  const navigateTo = (path: string) => {
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
-  };
-
-  // Logout Handler
-  const handleLogout = async () => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
+  // Check for existing pending order in localStorage on mount
+  useEffect(() => {
+    const pending = getPendingOrder();
+    if (pending) {
+      console.log('Detected pending order in localStorage:', pending.numero_pedido);
     }
-    setAdminUserEmail(null);
-    localStorage.removeItem(LOCAL_STORAGE_ADMIN_USER);
-    navigateTo('/admin/login');
-  };
+
+    // Try reading remote configuration if endpoint is present
+    if (sheetsEndpoint) {
+      fetchConfigFromGoogleSheets(sheetsEndpoint);
+    }
+  }, [sheetsEndpoint]);
 
   // Selected Product helper
   const selectedProduct =
@@ -152,7 +98,7 @@ export default function App() {
     storeConfig.products[0] ||
     APP_CONFIG.products[0];
 
-  // Navigation handlers for public form
+  // Navigation handlers
   const handleNextStep = () => {
     setDirection('next');
     if (currentStep < 9) {
@@ -194,7 +140,7 @@ export default function App() {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
   };
 
-  // Submit order to Supabase and invoke Notion Sync
+  // Submit order to Google Sheets
   const submitOrderAndProceed = async (overrideFormData?: OrderFormData) => {
     const dataToSubmit = overrideFormData || formData;
     const prod =
@@ -211,8 +157,15 @@ export default function App() {
       ''
     )}`;
 
+    const paymentMethodMap: Record<PaymentMethodType, string> = {
+      transferencia: 'Transferencia',
+      link: 'Link de pago',
+      qr: 'QR',
+    };
+
     const payload: OrderPayload = {
       numero_pedido: numeroPedido,
+      fecha: new Date().toISOString(),
       nombre: dataToSubmit.nombre.trim(),
       whatsapp: formattedWhatsApp,
       email: dataToSubmit.email.trim(),
@@ -222,9 +175,8 @@ export default function App() {
       precio_unitario: unitPrice,
       total: total,
       notas: dataToSubmit.notas.trim(),
-      metodo_pago: dataToSubmit.metodoPago,
+      metodo_pago: paymentMethodMap[dataToSubmit.metodoPago] || 'Transferencia',
       estado: 'Pendiente de pago',
-      fecha: new Date().toISOString(),
     };
 
     setOrderPayload(payload);
@@ -232,18 +184,21 @@ export default function App() {
     setWebhookStatus('loading');
     setWebhookErrorMsg('');
 
-    // Save order via Supabase & sync Notion
-    const res = await savePublicOrder(payload);
+    // Send order to Google Sheets Web App endpoint
+    const result = await sendOrderToGoogleSheets(payload, sheetsEndpoint);
 
-    if (res.success) {
+    if (result.success) {
       setWebhookStatus('success');
     } else {
       setWebhookStatus('error');
-      setWebhookErrorMsg(res.notionError || 'Error procesando el pedido.');
+      setWebhookErrorMsg(
+        result.error ||
+          'No se pudo conectar con Google Sheets. Puedes enviarnos el pedido por WhatsApp.'
+      );
     }
   };
 
-  // Public Form Validations
+  // Step Validations
   const validateStep1Name = (val: string) => {
     if (val.trim().length < 3) return 'Ingresa tu nombre completo (mínimo 3 caracteres).';
     return null;
@@ -261,73 +216,6 @@ export default function App() {
     return null;
   };
 
-  // ============================================================================
-  // ADMIN PANEL ROUTER BRANCH
-  // ============================================================================
-  if (currentPath.startsWith('/admin')) {
-    // 1. OAuth Callback View
-    if (currentPath === '/admin/integraciones/callback') {
-      return (
-        <AdminLayout
-          currentPath={currentPath}
-          onNavigate={navigateTo}
-          userEmail={adminUserEmail || 'admin@capilaris.com'}
-          onLogout={handleLogout}
-        >
-          <AdminCallback onNavigate={navigateTo} />
-        </AdminLayout>
-      );
-    }
-
-    // 2. Unauthenticated Admin -> Login
-    if (!adminUserEmail && currentPath !== '/admin/login') {
-      return <AdminLogin onSuccess={(email) => {
-        setAdminUserEmail(email);
-        localStorage.setItem(LOCAL_STORAGE_ADMIN_USER, email);
-        navigateTo('/admin');
-      }} />;
-    }
-
-    if (currentPath === '/admin/login') {
-      return <AdminLogin onSuccess={(email) => {
-        setAdminUserEmail(email);
-        localStorage.setItem(LOCAL_STORAGE_ADMIN_USER, email);
-        navigateTo('/admin');
-      }} />;
-    }
-
-    // 3. Authenticated Admin Views
-    return (
-      <AdminLayout
-        currentPath={currentPath}
-        onNavigate={navigateTo}
-        userEmail={adminUserEmail || 'admin@capilaris.com'}
-        onLogout={handleLogout}
-      >
-        {currentPath === '/admin' && (
-          <AdminDashboard
-            onNavigateToOrders={(filterSync) =>
-              navigateTo(`/admin/pedidos${filterSync ? `?sync=${filterSync}` : ''}`)
-            }
-          />
-        )}
-
-        {currentPath.startsWith('/admin/pedidos') && (
-          <AdminOrders
-            initialSyncFilter={new URLSearchParams(window.location.search).get('sync') || 'todos'}
-          />
-        )}
-
-        {currentPath === '/admin/integraciones' && <AdminIntegrations />}
-
-        {currentPath === '/admin/configuracion' && <AdminConfig />}
-      </AdminLayout>
-    );
-  }
-
-  // ============================================================================
-  // PUBLIC CONVERSATIONAL FORM (CLIENT VIEW)
-  // ============================================================================
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {/* Top Fixed Header with Progress Bar */}
@@ -337,7 +225,7 @@ export default function App() {
         canGoBack={currentStep > 1 && !isPaymentScreen}
         onBack={handleBackStep}
         onReset={handleResetOrder}
-        onOpenConfig={() => navigateTo('/admin')}
+        onOpenConfig={() => setIsConfigOpen(true)}
         isPaymentScreen={isPaymentScreen}
       />
 
@@ -351,7 +239,20 @@ export default function App() {
               product={selectedProduct}
               webhookStatus={webhookStatus}
               webhookErrorMsg={webhookErrorMsg}
-              onRetryWebhook={() => submitOrderAndProceed()}
+              onRetryWebhook={() => {
+                if (orderPayload) {
+                  setWebhookStatus('loading');
+                  sendOrderToGoogleSheets(orderPayload, sheetsEndpoint).then((res) => {
+                    if (res.success) setWebhookStatus('success');
+                    else {
+                      setWebhookStatus('error');
+                      setWebhookErrorMsg(res.error || 'Fallo de reintento.');
+                    }
+                  });
+                } else {
+                  submitOrderAndProceed();
+                }
+              }}
               onResetOrder={handleResetOrder}
             />
           </div>
@@ -487,12 +388,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Legacy Config Drawer fallback */}
+      {/* Google Sheets Config Modal */}
       <ConfigModal
         isOpen={isConfigOpen}
         onClose={() => setIsConfigOpen(false)}
-        webhookUrl={webhookUrl}
-        onUpdateWebhookUrl={(url) => setWebhookUrl(url)}
+        sheetsEndpoint={sheetsEndpoint}
+        onUpdateSheetsEndpoint={(url) => setSheetsEndpoint(url)}
       />
     </div>
   );

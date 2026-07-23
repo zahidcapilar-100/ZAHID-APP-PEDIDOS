@@ -1,27 +1,27 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, Code, Database, Check, AlertCircle, Save } from 'lucide-react';
+import { X, FileSpreadsheet, Check, Save, Info } from 'lucide-react';
 import { APP_CONFIG } from '../config';
 
 interface ConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  webhookUrl: string;
-  onUpdateWebhookUrl: (url: string) => void;
+  sheetsEndpoint: string;
+  onUpdateSheetsEndpoint: (url: string) => void;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
   isOpen,
   onClose,
-  webhookUrl,
-  onUpdateWebhookUrl,
+  sheetsEndpoint,
+  onUpdateSheetsEndpoint,
 }) => {
-  const [inputUrl, setInputUrl] = useState(webhookUrl);
+  const [inputUrl, setInputUrl] = useState(sheetsEndpoint);
   const [saved, setSaved] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    onUpdateWebhookUrl(inputUrl);
+    onUpdateSheetsEndpoint(inputUrl);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -32,15 +32,15 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-slate-900 text-white rounded-xl">
-              <Database className="w-5 h-5" />
+            <div className="p-2 bg-emerald-600 text-white rounded-xl">
+              <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-extrabold text-slate-900 text-lg">
-                Configuración de la Tienda & Notion
+                Integración con Google Sheets
               </h3>
               <p className="text-xs text-slate-500">
-                Webhook de integración e información de sincronización
+                Endpoint Web App de Google Apps Script
               </p>
             </div>
           </div>
@@ -53,17 +53,17 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           </button>
         </div>
 
-        {/* Webhook Configuration Section */}
+        {/* Sheets Endpoint Input */}
         <div className="space-y-3">
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-            URL del Webhook (Make.com / n8n / Zapier / Notion)
+            URL del Web App de Google Apps Script
           </label>
           <div className="flex gap-2">
             <input
               type="url"
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
-              placeholder="https://hook.us1.make.com/your-notion-webhook-id"
+              placeholder="https://script.google.com/macros/s/{{ID}}/exec"
               className="flex-1 px-4 py-2.5 text-xs font-mono rounded-xl border border-slate-300 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none"
             />
             <button
@@ -76,67 +76,36 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             </button>
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Esta URL recibe el payload JSON al confirmar el pedido para guardar en la base de datos de Notion. Configúrala en <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono">.env.example</code> como <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono">VITE_WEBHOOK_URL</code>.
+            Configurada también en <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono">.env.example</code> como <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800 font-mono">VITE_SHEETS_ENDPOINT</code>.
           </p>
         </div>
 
-        {/* Notion Schema Mapping Reference */}
+        {/* Google Sheets Column Mapping */}
         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-              <Code className="w-4 h-4 text-emerald-600" />
-              Esquema de Propiedades en Notion
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              Columnas de la pestaña "Pedidos" (Fila 1)
             </span>
-            <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-              Tipos exactos
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+              13 columnas exactas
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Title:</span> <span className="font-bold text-slate-800">Número de pedido</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Text:</span> <span className="font-bold text-slate-800">Nombre</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Phone:</span> <span className="font-bold text-slate-800">WhatsApp</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Email:</span> <span className="font-bold text-slate-800">Email</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Text:</span> <span className="font-bold text-slate-800">Ciudad</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Select:</span> <span className="font-bold text-slate-800">Producto</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Number:</span> <span className="font-bold text-slate-800">Cantidad</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Number:</span> <span className="font-bold text-slate-800">Precio unitario</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Number:</span> <span className="font-bold text-slate-800">Total</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <span className="text-slate-400">Text:</span> <span className="font-bold text-slate-800">Notas</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200 col-span-2">
-              <span className="text-slate-400">Select:</span> <span className="font-bold text-slate-800">Método de pago</span> <span className="text-[10px] text-slate-400">(transferencia / link / qr)</span>
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200 col-span-2">
-              <span className="text-slate-400">Select:</span> <span className="font-bold text-slate-800">Estado</span> <span className="text-[10px] text-slate-400">(Pendiente de pago)</span>
-            </div>
+          <p className="text-[11px] text-slate-600">
+            Asegúrate de tener estos encabezados en la primera fila de tu hoja en este orden exacto:
+          </p>
+
+          <div className="text-[11px] font-mono bg-white p-3 rounded-xl border border-slate-200 leading-relaxed text-slate-800">
+            Número de pedido | Fecha | Nombre | WhatsApp | Email | Ciudad | Producto | Cantidad | Precio unitario | Total | Notas | Método de pago | Estado
           </div>
         </div>
 
         {/* Centralized config note */}
         <div className="text-xs text-slate-500 bg-emerald-50 text-emerald-900 p-3 rounded-2xl border border-emerald-200 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <span>
-            Los precios, banco, titular, link de pago e imagen QR están centralizados en el archivo <code className="bg-emerald-100 font-mono font-bold px-1 rounded">src/config.ts</code>.
+            Los precios, banco, titular, link de pago e imagen QR están configurados en <code className="bg-emerald-100 font-mono font-bold px-1 rounded">src/config.ts</code>.
           </span>
         </div>
 
@@ -147,7 +116,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             onClick={onClose}
             className="px-5 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
           >
-            Entendido
+            Cerrar
           </button>
         </div>
       </div>
