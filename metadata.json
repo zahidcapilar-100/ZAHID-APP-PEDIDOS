@@ -1,0 +1,6 @@
+{
+  "name": "Captura de Pedidos Conversacional",
+  "description": "Formulario conversacional tipo Typeform para captura de pedidos con integración a Notion y pantalla de pago.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
