@@ -7,6 +7,7 @@ export interface Product {
   badge?: string;
   image?: string;
   iconName?: string;
+  activo?: boolean;
 }
 
 export interface CountryCode {
@@ -16,6 +17,8 @@ export interface CountryCode {
 }
 
 export type PaymentMethodType = 'transferencia' | 'link' | 'qr';
+
+export type OrderStatusType = 'Pendiente de pago' | 'Pagado' | 'Enviado' | 'Cancelado';
 
 export interface OrderFormData {
   nombre: string;
@@ -40,9 +43,10 @@ export interface OrderPayload {
   precio_unitario: number;
   total: number;
   notas: string;
-  metodo_pago: PaymentMethodType;
+  metodo_pago: string;
   estado: string;
   fecha: string;
+  notas_internas?: string;
 }
 
 export interface BankDetails {
@@ -75,4 +79,34 @@ export interface CompanyConfig {
   qrDetails: QrDetails;
   products: Product[];
   countryCodes: CountryCode[];
+}
+
+export interface AdminProduct {
+  id?: string;
+  nombre: string;
+  precio: number;
+  activo: boolean;
+}
+
+export interface SheetsConfig {
+  banco?: string;
+  tipo_cuenta?: string;
+  numero_cuenta?: string;
+  titular?: string;
+  documento?: string;
+  whatsapp?: string;
+  link_pago?: string;
+  qr_url?: string;
+  [key: string]: string | undefined;
+}
+
+export interface ApiResponse<T = any> {
+  ok: boolean;
+  data?: T;
+  config?: SheetsConfig;
+  productos?: AdminProduct[];
+  pedidos?: OrderPayload[];
+  error?: string;
+  mensaje?: string;
+  numero_pedido?: string;
 }

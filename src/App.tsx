@@ -1,9 +1,5 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ProgressBar } from './components/ProgressBar';
 import { StepWrapper } from './components/StepWrapper';
 import { TextStep } from './components/TextStep';
@@ -13,33 +9,34 @@ import { QuantityStep } from './components/QuantityStep';
 import { SummaryStep } from './components/SummaryStep';
 import { PaymentMethodStep } from './components/PaymentMethodStep';
 import { PaymentScreen } from './components/PaymentScreen';
-import { ConfigModal } from './components/ConfigModal';
 import { OrderFormData, OrderPayload, PaymentMethodType, CompanyConfig } from './types';
 import { APP_CONFIG, generateOrderNumber } from './config';
 import {
   sendOrderToGoogleSheets,
-  fetchConfigFromGoogleSheets,
+  fetchPublicConfig,
+  fetchPublicProducts,
   getPendingOrder,
+  getSheetsEndpoint,
 } from './lib/sheetsService';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load Admin Bundle so public form visitors NEVER download the admin JavaScript
+const AdminAppLazy = lazy(() => import('./components/admin/AdminApp'));
 
 const LOCAL_STORAGE_KEY = 'capilaris_order_draft_v2';
 
-export default function App() {
+function PublicFormApp() {
   // Store Config (Can be augmented from Sheets)
-  const [storeConfig] = useState<CompanyConfig>(APP_CONFIG);
+  const [storeConfig, setStoreConfig] = useState<CompanyConfig>(APP_CONFIG);
 
   // Form Navigation State
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [direction, setDirection] = useState<'next' | 'back'>('next');
   const [isPaymentScreen, setIsPaymentScreen] = useState<boolean>(false);
-  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(false);
 
   // Google Sheets Endpoint Web App URL
-  const [sheetsEndpoint, setSheetsEndpoint] = useState<string>(() => {
-    return (
-      (import.meta.env.VITE_SHEETS_ENDPOINT as string) ||
-      ''
-    );
+  const [sheetsEndpoint] = useState<string>(() => {
+    return getSheetsEndpoint();
   });
 
   // Form Data state with LocalStorage draft memory
@@ -79,18 +76,30 @@ export default function App() {
     }
   }, [formData, isPaymentScreen]);
 
-  // Check for existing pending order in localStorage on mount
+  // Check for existing pending order and load remote products & config
   useEffect(() => {
     const pending = getPendingOrder();
     if (pending) {
       console.log('Detected pending order in localStorage:', pending.numero_pedido);
     }
 
-    // Try reading remote configuration if endpoint is present
     if (sheetsEndpoint) {
-      fetchConfigFromGoogleSheets(sheetsEndpoint);
+      fetchPublicConfig(sheetsEndpoint);
+      // Fetch dynamic active products from Sheets
+      fetchPublicProducts(sheetsEndpoint).then((products) => {
+        if (products && products.length > 0) {
+          setStoreConfig((prev) => ({
+            ...prev,
+            products: products,
+          }));
+          // If selected product not in list, fallback to first
+          if (!products.some((p) => p.id === formData.productoId)) {
+            setFormData((f) => ({ ...f, productoId: products[0].id }));
+          }
+        }
+      });
     }
-  }, [sheetsEndpoint]);
+  }, [sheetsEndpoint, formData.productoId]);
 
   // Selected Product helper
   const selectedProduct =
@@ -225,7 +234,6 @@ export default function App() {
         canGoBack={currentStep > 1 && !isPaymentScreen}
         onBack={handleBackStep}
         onReset={handleResetOrder}
-        onOpenConfig={() => setIsConfigOpen(true)}
         isPaymentScreen={isPaymentScreen}
       />
 
@@ -387,14 +395,57 @@ export default function App() {
           </StepWrapper>
         )}
       </main>
-
-      {/* Google Sheets Config Modal */}
-      <ConfigModal
-        isOpen={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-        sheetsEndpoint={sheetsEndpoint}
-        onUpdateSheetsEndpoint={(url) => setSheetsEndpoint(url)}
-      />
     </div>
+  );
+}
+
+// Meta robots controller component
+function RobotsController() {
+  const location = useLocation();
+
+  useEffect(() => {
+    let metaRobots = document.querySelector('meta[name="robots"]');
+
+    if (location.pathname.startsWith('/admin')) {
+      if (!metaRobots) {
+        metaRobots = document.createElement('meta');
+        metaRobots.setAttribute('name', 'robots');
+        document.head.appendChild(metaRobots);
+      }
+      metaRobots.setAttribute('content', 'noindex, nofollow');
+    } else {
+      if (metaRobots) {
+        metaRobots.setAttribute('content', 'index, follow');
+      }
+    }
+  }, [location]);
+
+  return null;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <RobotsController />
+      <Routes>
+        <Route path="/" element={<PublicFormApp />} />
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 font-mono text-xs space-y-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+                  <span>Cargando Panel de Administración...</span>
+                </div>
+              }
+            >
+              <AdminAppLazy />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<PublicFormApp />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

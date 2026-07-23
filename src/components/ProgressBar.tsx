@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, RefreshCw, Settings, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
 import { APP_CONFIG } from '../config';
 
 interface ProgressBarProps {
@@ -8,7 +8,6 @@ interface ProgressBarProps {
   onBack?: () => void;
   canGoBack: boolean;
   onReset?: () => void;
-  onOpenConfig?: () => void;
   isPaymentScreen?: boolean;
 }
 
@@ -18,7 +17,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   onBack,
   canGoBack,
   onReset,
-  onOpenConfig,
   isPaymentScreen = false,
 }) => {
   // Calculate percentage (0 to 100%)
@@ -62,7 +60,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                   className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    // Fallback to text icon if image fails
                     e.currentTarget.style.display = 'none';
                   }}
                 />
@@ -90,7 +87,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           )}
         </div>
 
-        {/* Right: Actions (Reset & Settings) */}
+        {/* Right: Reset Action */}
         <div className="flex items-center gap-1.5">
           {onReset && (
             <button
@@ -101,18 +98,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
               aria-label="Reiniciar pedido"
             >
               <RefreshCw className="w-4 h-4" />
-            </button>
-          )}
-
-          {onOpenConfig && (
-            <button
-              type="button"
-              onClick={onOpenConfig}
-              title="Configuración de la tienda y webhook"
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-              aria-label="Abrir panel de configuración"
-            >
-              <Settings className="w-4 h-4" />
             </button>
           )}
         </div>
