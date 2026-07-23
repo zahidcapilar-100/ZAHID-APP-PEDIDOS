@@ -1,4 +1,13 @@
 import { OrderPayload, Product, AdminProduct, SheetsConfig, ApiResponse } from '../types';
+import { getAdminSession } from './googleAuth';
+import {
+  getConnectedSpreadsheet,
+  updateOrderStatusSheetsApi,
+  updateOrderNotesSheetsApi,
+  saveProductToSheetsApi,
+  deleteProductFromSheetsApi,
+  saveConfigToSheetsApi,
+} from './googleSheetsApi';
 
 const PENDING_ORDER_KEY = 'capilaris_pedido_pendiente';
 
@@ -209,28 +218,8 @@ export const fetchPublicConfig = async (
 };
 
 // ============================================================================
-// ADMIN PANEL API CALLS (Requires admin_key / clave)
+// ADMIN PANEL API CALLS (Module 4 Google OAuth & Direct Sheets REST API)
 // ============================================================================
-
-/**
- * Admin Login: Test key validity
- */
-export const adminLogin = async (
-  clave: string,
-  endpointUrl?: string
-): Promise<ApiResponse> => {
-  return await getFromSheets({ accion: 'login', clave }, endpointUrl);
-};
-
-/**
- * Admin: Fetch all orders
- */
-export const fetchAdminOrders = async (
-  clave: string,
-  endpointUrl?: string
-): Promise<ApiResponse<OrderPayload[]>> => {
-  return await getFromSheets<OrderPayload[]>({ accion: 'pedidos', clave }, endpointUrl);
-};
 
 /**
  * Admin: Update order status
@@ -241,6 +230,13 @@ export const updateOrderStatus = async (
   estado: string,
   endpointUrl?: string
 ): Promise<ApiResponse> => {
+  const sheet = getConnectedSpreadsheet();
+  const session = getAdminSession();
+
+  if (sheet.id && session?.token) {
+    return await updateOrderStatusSheetsApi(sheet.id, session.token, numero_pedido, estado);
+  }
+
   return await postToSheets(
     { accion: 'actualizar_estado', clave, numero_pedido, estado },
     endpointUrl
@@ -256,10 +252,27 @@ export const updateOrderNotes = async (
   notas_internas: string,
   endpointUrl?: string
 ): Promise<ApiResponse> => {
+  const sheet = getConnectedSpreadsheet();
+  const session = getAdminSession();
+
+  if (sheet.id && session?.token) {
+    return await updateOrderNotesSheetsApi(sheet.id, session.token, numero_pedido, notas_internas);
+  }
+
   return await postToSheets(
     { accion: 'actualizar_notas', clave, numero_pedido, notas_internas },
     endpointUrl
   );
+};
+
+/**
+ * Admin: Fetch all orders
+ */
+export const fetchAdminOrders = async (
+  clave: string,
+  endpointUrl?: string
+): Promise<ApiResponse<OrderPayload[]>> => {
+  return await getFromSheets<OrderPayload[]>({ accion: 'pedidos', clave }, endpointUrl);
 };
 
 /**
@@ -280,6 +293,13 @@ export const saveAdminProduct = async (
   product: { nombre: string; precio: number; activo: boolean; original_nombre?: string },
   endpointUrl?: string
 ): Promise<ApiResponse> => {
+  const sheet = getConnectedSpreadsheet();
+  const session = getAdminSession();
+
+  if (sheet.id && session?.token) {
+    return await saveProductToSheetsApi(sheet.id, session.token, product);
+  }
+
   return await postToSheets(
     { accion: 'guardar_producto', clave, ...product },
     endpointUrl
@@ -294,6 +314,13 @@ export const deleteAdminProduct = async (
   nombre: string,
   endpointUrl?: string
 ): Promise<ApiResponse> => {
+  const sheet = getConnectedSpreadsheet();
+  const session = getAdminSession();
+
+  if (sheet.id && session?.token) {
+    return await deleteProductFromSheetsApi(sheet.id, session.token, nombre);
+  }
+
   return await postToSheets(
     { accion: 'eliminar_producto', clave, nombre },
     endpointUrl
@@ -318,6 +345,13 @@ export const saveAdminConfig = async (
   config: SheetsConfig,
   endpointUrl?: string
 ): Promise<ApiResponse> => {
+  const sheet = getConnectedSpreadsheet();
+  const session = getAdminSession();
+
+  if (sheet.id && session?.token) {
+    return await saveConfigToSheetsApi(sheet.id, session.token, config);
+  }
+
   return await postToSheets(
     { accion: 'guardar_config', clave, config },
     endpointUrl
@@ -325,7 +359,7 @@ export const saveAdminConfig = async (
 };
 
 /**
- * Admin: Change access key
+ * Admin: Change access key (Legacy / WebApp fallback)
  */
 export const changeAdminKey = async (
   clave: string,
