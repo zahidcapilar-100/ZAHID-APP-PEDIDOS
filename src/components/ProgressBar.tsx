@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
 import { APP_CONFIG } from '../config';
 
@@ -101,14 +102,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             </button>
           )}
 
-          <a
-            href="/admin"
+          <Link
+            to="/admin"
             title="Acceso al Panel de Administración"
             className="px-2.5 py-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold border border-slate-200/60"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span className="hidden sm:inline">Admin</span>
-          </a>
+          </Link>
         </div>
       </div>
     </header>

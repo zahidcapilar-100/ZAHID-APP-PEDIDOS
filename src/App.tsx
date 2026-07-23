@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
 import { ProgressBar } from './components/ProgressBar';
 import { StepWrapper } from './components/StepWrapper';
 import { TextStep } from './components/TextStep';
@@ -401,12 +401,12 @@ function PublicFormApp() {
         <div className="max-w-md mx-auto flex items-center justify-center gap-2">
           <span>{storeConfig.companyName} © {new Date().getFullYear()}</span>
           <span>•</span>
-          <a
-            href="/admin"
+          <Link
+            to="/admin"
             className="text-slate-500 hover:text-emerald-600 font-semibold transition-colors underline decoration-slate-300 underline-offset-2"
           >
             Panel de Administración
-          </a>
+          </Link>
         </div>
       </footer>
     </div>
