@@ -395,6 +395,20 @@ function PublicFormApp() {
           </StepWrapper>
         )}
       </main>
+
+      {/* Discreet Footer with Admin Link */}
+      <footer className="py-4 text-center text-xs text-slate-400 border-t border-slate-200/50 bg-white/50 backdrop-blur-xs">
+        <div className="max-w-md mx-auto flex items-center justify-center gap-2">
+          <span>{storeConfig.companyName} © {new Date().getFullYear()}</span>
+          <span>•</span>
+          <a
+            href="/admin"
+            className="text-slate-500 hover:text-emerald-600 font-semibold transition-colors underline decoration-slate-300 underline-offset-2"
+          >
+            Panel de Administración
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }
